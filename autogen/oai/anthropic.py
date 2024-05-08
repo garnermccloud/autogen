@@ -1,17 +1,29 @@
 import inspect
 import json
+import logging
+import sys
 from typing import Any, Dict, List, Union
 
 from anthropic import Anthropic
 from anthropic import __version__ as anthropic_version
 from anthropic.types import Completion, Message
+from flaml.automl.logger import logger_formatter
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
+
+from .openai_utils import ANTHROPIC_PRICE1MM
 
 TOOL_ENABLED = anthropic_version >= "0.23.1"
 if TOOL_ENABLED:
     from anthropic.types.beta.tools import ToolsBetaMessage
 else:
     ToolsBetaMessage = object
+
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    # Add the console handler.
+    _ch = logging.StreamHandler(stream=sys.stdout)
+    _ch.setFormatter(logger_formatter)
+    logger.addHandler(_ch)
 
 
 class AnthropicClient:
@@ -105,10 +117,11 @@ class AnthropicClient:
             "input": response.usage.input_tokens if response.usage is not None else 0,
             "output": response.usage.output_tokens if response.usage is not None else 0,
         }
-        price_per_million = {
-            "input": 15,
-            "output": 75,
-        }
+        if self.model not in ANTHROPIC_PRICE1MM:
+            # TODO: add logging to warn that the model is not found
+            logger.debug(f"Model {self.model} is not found. The cost will be 0.", exc_info=True)
+            return 0
+        price_per_million = ANTHROPIC_PRICE1MM[self.model]
         for key, value in tokens.items():
             total += value * price_per_million[key] / 1_000_000
 

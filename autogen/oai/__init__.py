@@ -9,6 +9,7 @@ from autogen.oai.openai_utils import (
     config_list_openai_aoai,
     filter_config,
     get_config_list,
+    get_config_list_claude,
 )
 
 __all__ = [
@@ -17,6 +18,7 @@ __all__ = [
     "Completion",
     "ChatCompletion",
     "get_config_list",
+    "get_config_list_claude",
     "config_list_gpt4_gpt35",
     "config_list_openai_aoai",
     "config_list_from_models",

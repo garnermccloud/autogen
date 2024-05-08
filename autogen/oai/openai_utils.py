@@ -61,6 +61,22 @@ OAI_PRICE1K = {
     "gpt-35-turbo-16k-0613": (0.003, 0.004),
 }
 
+ANTHROPIC_PRICE1MM = {
+    # https://www.anthropic.com/api#pricing
+    "claude-3-opus-20240229": {
+        "input": 15,
+        "output": 75,
+    },
+    "claude-3-sonnet-20240229": {
+        "input": 3,
+        "output": 15,
+    },
+    "claude-3-haiku-20240307": {
+        "input": 0.25,
+        "output": 1.25,
+    },
+}
+
 
 def get_key(config: Dict[str, Any]) -> str:
     """Get a unique identifier of a configuration.
@@ -782,3 +798,20 @@ def update_gpt_assistant(client: OpenAI, assistant_id: str, assistant_config: Di
             assistant_update_kwargs["file_ids"] = assistant_config["file_ids"]
 
     return client.beta.assistants.update(assistant_id=assistant_id, **assistant_update_kwargs)
+
+
+def get_config_list_claude(model: str) -> List[Dict[str, Any]]:
+    """
+    Get the configuration list for claude models
+    """
+    return [
+        {
+            # Choose your model name.
+            "model": model,
+            # You need to provide your API key here.
+            "api_key": os.getenv("ANTHROPIC_API_KEY"),
+            "base_url": "https://api.anthropic.com",
+            "api_type": "anthropic",
+            "model_client_cls": "AnthropicClient",
+        }
+    ]
