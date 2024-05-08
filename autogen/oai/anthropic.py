@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Union
 
 from anthropic import Anthropic
 from anthropic import __version__ as anthropic_version
+from anthropic.resources.messages import Messages
 from anthropic.types import Completion, Message
 from flaml.automl.logger import logger_formatter
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
@@ -24,6 +25,13 @@ if not logger.handlers:
     _ch = logging.StreamHandler(stream=sys.stdout)
     _ch.setFormatter(logger_formatter)
     logger.addHandler(_ch)
+
+
+def pop_invalid_message_keys(messages: List[Dict[str, Any]]) -> tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Remove keys that are not in the Message model, return the valid messages and last invalid message items so we can add them back in."""
+    valid_messages = [{k: v for k, v in message.items() if k in Message.model_fields} for message in messages]
+    invalid_message_dict = {k: v for k, v in messages[-1].items() if k not in Message.model_fields}
+    return valid_messages, invalid_message_dict
 
 
 class AnthropicClient:
@@ -76,12 +84,16 @@ class AnthropicClient:
 
         raw_contents = params["messages"]
         processed_messages = []
-        for message in raw_contents:
+        valid_messages, _ = pop_invalid_message_keys(raw_contents)
+        for i, message in enumerate(valid_messages):
+            old_message = raw_contents[i]
             if message["role"] == "system":
                 params["system"] = message["content"]
             elif message["role"] == "function":
                 processed_messages.append(self.return_function_call_result(message["content"]))
-            elif "function_call" in message:
+            elif (
+                "function_call" in old_message
+            ):  # we check the old_message since function_call is not in the model fields for Message
                 processed_messages.append(self.restore_last_tooluse_status())
             elif message["content"] == "":
                 # I'm not sure how to elegantly terminate the conversation, please give me some advice about this.
@@ -93,9 +105,9 @@ class AnthropicClient:
         params["messages"] = processed_messages
 
         if TOOL_ENABLED and "functions" in params:
-            completions: Completion = self._client.beta.tools.messages
+            completions: Messages = self._client.beta.tools.messages  # type: ignore [attr-defined]
         else:
-            completions: Completion = self._client.messages  # type: ignore [attr-defined]
+            completions: Messages = self._client.messages  # type: ignore [attr-defined]
 
         # Not yet support stream
         params = params.copy()
@@ -106,7 +118,7 @@ class AnthropicClient:
             tools_configs = params.pop("functions")
             tools_configs = [self.openai_func_to_anthropic(tool) for tool in tools_configs]
             params["tools"] = tools_configs
-        response = completions.create(**params)
+        response: Union[Message, ToolsBetaMessage] = completions.create(**params)
 
         return response
 
